@@ -685,8 +685,18 @@ string YulUtilFunctions::overflowCheckedIntMulFunction(IntegerType const& _type)
 				product := mul(x, y)
 				<?signed>
 					<?gt128bit>
-						if and(eq(x, sub(0, 1)), eq(y, <minValue>)) { <panic>() }
-						if and(iszero(iszero(x)), iszero(eq(y, sdiv(and(product, <bitMask>),x)))) { <panic>() }
+						// overflow, if product has positive sign and
+						// y != (p & bitMask) / x
+						if and(
+							iszero(and(product, <signalMask>)),
+							and(iszero(iszero(x)), iszero(eq(y, sdiv(and(product, <bitMask>),x))))
+						) { <panic>() }
+						// overflow, if product has negative sign and
+						// y != (p | !bitMask) / x
+						if and(
+							iszero(iszero(and(product, <signalMask>))),
+							and(iszero(iszero(x)), iszero(eq(y, sdiv(or(product, not(<bitMask>)),x))))
+						) { <panic>() }
 					<!gt128bit>
 						if or(sgt(product, <maxValue>), slt(product, <minValue>)) { <panic>() }
 					</gt128bit>
@@ -703,8 +713,8 @@ string YulUtilFunctions::overflowCheckedIntMulFunction(IntegerType const& _type)
 			("cleanupFunction", cleanupFunction(_type))
 			("panic", panicFunction(PanicCode::UnderOverflow))
 			("gt128bit", _type.numBits() > 128)
-			//("256bit", _type.numBits() == 256)
 			("bitMask", toCompactHexWithPrefix((u256(1) << _type.numBits()) - 1))
+			("signalMask", toCompactHexWithPrefix(u256(1) << _type.numBits() - 1))
 			.render();
 	});
 }
